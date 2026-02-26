@@ -1,0 +1,23 @@
+name: FE_ABCQ
+version: '1.0'
+main: top.miragedge.abcq.FE_ABCQ
+api-version: '1.21'
+prefix: FE_ABCQ
+authors: [ F.windEmiko ]
+description: 玩家知识问答插件
+website: https://github.com/fwindemiko/FE_ABCQ
+
+commands:
+  feabcq:
+    description: 知识问答插件主命令
+    usage: /feabcq <reload|help>
+    permission: feabcq.use
+    aliases: [faq]
+
+permissions:
+  feabcq.use:
+    description: 使用FE_ABCQ插件的权限
+    default: true
+  feabcq.reload:
+    description: 重载插件配置的权限
+    default: op
