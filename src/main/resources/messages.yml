@@ -2,31 +2,31 @@
 # 所有消息配置，支持MiniMessage格式和渐变色
 
 # 提问消息
-question_message: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <white>{question}</white>"
+question_message: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <white><question></white>"
 
 # 答对消息 - 对答对的玩家
-correct_answer_player: "<gradient:#4ECDC4:#45B7D1>恭喜您回答正确！</gradient>"
+correct_answer_player: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <gradient:#4ECDC4:#45B7D1>恭喜您回答正确！</gradient>"
 
 # 答对消息 - 全体广播（不发送给答题者本人）
-correct_answer_broadcast: "<gradient:#FFD93D:#FF6B6B>{player}</gradient> <green>抢答成功！</green>"
+correct_answer_broadcast: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <green><player></green> <gradient:#FFD93D:#FF6B6B>抢答成功！</gradient>"
 
 # 答错消息（使用Action Bar发送，不说出答案）
 wrong_answer_actionbar: ""
 
 # 无答题消息（时间到没有正确答案，不说出答案）
-no_answer: "<red>回答时间到！没有人答对！</red>"
+no_answer: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <red>回答时间到！没有人答对！</red>"
 
 # 人数不足消息（不发送消息）
 not_enough_players: ""
 
 # 重载成功消息
-reload_success: "<gradient:#96E6B3:#5F9EA0>配置文件重载成功！</gradient>"
+reload_success: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <gradient:#96E6B3:#5F9EA0>配置文件重载成功！</gradient>"
 
 # 重载失败消息
-reload_error: "<red>配置文件重载失败！</red> <gray>请检查配置文件格式</gray>"
+reload_error: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <red>配置文件重载失败！</red> <gray>请检查配置文件格式</gray>"
 
 # 没有权限消息
-no_permission: "<red>你没有权限使用此命令！</red>"
+no_permission: "<gradient:#FF6B6B:#4ECDC4>[知识问答]</gradient> <red>你没有权限使用此命令！</red>"
 
 # 帮助消息
 help_message:
@@ -35,4 +35,4 @@ help_message:
   - "<yellow>/feabcq help</yellow> - <gray>显示此帮助信息</gray>"
 
 # Action Bar消息
-actionbar_stats: "<gradient:#9B59B6:#3498DB>共答对: <gold>{correct_count}</gold>次 | 正确率: <green>{accuracy_rate}%</green></gradient>"
+actionbar_stats: "<gradient:#9B59B6:#3498DB>共答对: <gold><correct_count></gold>次 | 正确率: <green><accuracy_rate>%</green></gradient>"

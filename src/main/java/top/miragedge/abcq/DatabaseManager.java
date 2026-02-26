@@ -156,10 +156,6 @@ public class DatabaseManager {
             return false;
         }
     }
-
-    public Connection getConnection() {
-        return connection;
-    }
     
     // 玩家统计数据类
     public static class PlayerStats {
@@ -171,8 +167,8 @@ public class DatabaseManager {
         public PlayerStats(String uuid, String name, int correctAnswers, int totalAttempts) {
             this.uuid = uuid != null ? uuid : "";
             this.name = name;
-            this.correctAnswers = correctAnswers >= 0 ? correctAnswers : 0;
-            this.totalAttempts = totalAttempts >= 0 ? totalAttempts : 0;
+            this.correctAnswers = Math.max(0, correctAnswers);
+            this.totalAttempts = Math.max(0, totalAttempts);
         }
         
         public double getAccuracyRate() {
