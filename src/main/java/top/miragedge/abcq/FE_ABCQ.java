@@ -310,10 +310,13 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
         if (player == null || player.isDead() || !player.isOnline()) {
             return;
         }
+
+        Location loc = player.getLocation();
+        World world = player.getWorld();
+        if (world == null) return;
+
+        // 粒子效果（始终播放）
         if (getConfig().getBoolean("effects.particles", true)) {
-            Location loc = player.getLocation();
-            World world = player.getWorld();
-            if (world == null) return;
             Random random = new Random();
             for (int i = 0; i < 25; i++) {
                 double offsetX = (random.nextGaussian() - 0.5) * 2;
@@ -324,15 +327,34 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
                         1, 0, 0, 0, 0);
             }
         }
+
+        // 声音效果（始终播放）
         if (getConfig().getBoolean("effects.sounds", true)) {
-            player.playSound(player.getLocation(), "entity.player.levelup", 1.0f, 1.0f);
+            player.playSound(loc, "entity.player.levelup", 1.0f, 1.0f);
         }
+
+        // 烟花效果（仅在户外生成）
         if (getConfig().getBoolean("effects.fireworks", true)) {
-            Location loc = player.getLocation();
-            World world = player.getWorld();
-            if (world == null) return;
+            // 检查玩家是否在户外：从玩家位置向上查找，如果 10 格内存在非空气方块，则认为在室内
+            boolean isOutdoor = true;
+            for (int y = loc.getBlockY() + 1; y <= loc.getBlockY() + 10 && y < world.getMaxHeight(); y++) {
+                if (!world.getBlockAt(loc.getBlockX(), y, loc.getBlockZ()).getType().isAir()) {
+                    isOutdoor = false;
+                    break;
+                }
+            }
+
+            if (!isOutdoor) {
+                // 室内环境：用大量彩色粒子替代烟花，避免火箭爆炸
+                world.spawnParticle(Particle.FIREWORK, loc, 50, 1.5, 1.5, 1.5, 0.1);
+                world.spawnParticle(Particle.FLASH, loc, 5, 0.5, 0.5, 0.5, 0);
+                return;
+            }
+
+            // 户外：生成标准烟花火箭
             org.bukkit.entity.Firework firework = (org.bukkit.entity.Firework) world.spawnEntity(loc, org.bukkit.entity.EntityType.FIREWORK_ROCKET);
             org.bukkit.inventory.meta.FireworkMeta fireworkMeta = firework.getFireworkMeta();
+
             FireworkEffect effect = FireworkEffect.builder()
                     .with(FireworkEffect.Type.STAR)
                     .withColor(Color.YELLOW, Color.RED, Color.BLUE)
@@ -340,14 +362,17 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
                     .flicker(true)
                     .trail(true)
                     .build();
+
             fireworkMeta.addEffect(effect);
-            fireworkMeta.setPower(1);
+            fireworkMeta.setPower(1); // 适当的高度
             firework.setFireworkMeta(fireworkMeta);
+
+            // 延迟删除烟花实体（避免残留）
             getServer().getGlobalRegionScheduler().runDelayed(this, task -> {
                 if (firework.isValid() && !firework.isDead()) {
                     firework.remove();
                 }
-            }, 20L);
+            }, 60L); // 3秒后删除（通常烟花已爆炸）
         }
     }
 
