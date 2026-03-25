@@ -7,7 +7,7 @@ public class DatabaseManager {
     private Connection connection;
     private final String dbPath;
     private final Logger logger;
-    private final Object lock = new Object(); // 添加锁对象用于同步
+    private final Object lock = new Object();
 
     public DatabaseManager(String dbPath, Logger logger) {
         this.dbPath = dbPath;
@@ -16,11 +16,17 @@ public class DatabaseManager {
 
     public void connect() throws SQLException {
         synchronized (lock) {
+            if (isConnected()) {
+                return;
+            }
             try {
-                connection = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
+                // 使用标准化路径处理Windows路径问题
+                String normalizedPath = dbPath.replace("\\", "/");
+                connection = DriverManager.getConnection("jdbc:sqlite:" + normalizedPath);
                 createTables();
             } catch (SQLException e) {
                 logger.severe("无法连接到数据库: " + e.getMessage());
+                connection = null;
                 throw e;
             }
         }
@@ -37,7 +43,7 @@ public class DatabaseManager {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             """;
-        
+
         try (Statement stmt = connection.createStatement()) {
             stmt.execute(createTableSQL);
         } catch (SQLException e) {
@@ -51,55 +57,34 @@ public class DatabaseManager {
             logger.warning("试图使用空UUID更新玩家统计");
             return;
         }
-        
+
         synchronized (lock) {
             if (!isConnected()) {
                 logger.warning("数据库未连接，无法更新玩家统计");
                 return;
             }
-            
-            // 检查玩家是否已存在
-            String checkSQL = "SELECT COUNT(*) FROM player_stats WHERE uuid = ?";
-            boolean exists;
-            
-            try (PreparedStatement checkStmt = connection.prepareStatement(checkSQL)) {
-                checkStmt.setString(1, uuid);
-                try (ResultSet rs = checkStmt.executeQuery()) {
-                    exists = rs.next() && rs.getInt(1) > 0;
-                }
-            }
-            
-            if (exists) {
-                // 更新现有记录
-                String updateSQL = """
-                    UPDATE player_stats 
-                    SET name = ?, 
-                        correct_answers = correct_answers + ?, 
-                        total_attempts = total_attempts + 1, 
-                        updated_at = CURRENT_TIMESTAMP 
-                    WHERE uuid = ?
-                    """;
-                
-                try (PreparedStatement updateStmt = connection.prepareStatement(updateSQL)) {
-                    updateStmt.setString(1, name != null ? name : uuid);
-                    updateStmt.setInt(2, isCorrect ? 1 : 0);
-                    updateStmt.setString(3, uuid);
-                    updateStmt.executeUpdate();
-                }
-            } else {
-                // 插入新记录
-                String insertSQL = """
-                    INSERT INTO player_stats (uuid, name, correct_answers, total_attempts) 
-                    VALUES (?, ?, ?, ?)
-                    """;
-                
-                try (PreparedStatement insertStmt = connection.prepareStatement(insertSQL)) {
-                    insertStmt.setString(1, uuid);
-                    insertStmt.setString(2, name != null ? name : uuid);
-                    insertStmt.setInt(3, isCorrect ? 1 : 0);
-                    insertStmt.setInt(4, 1);
-                    insertStmt.executeUpdate();
-                }
+
+            // 使用 SQLite UPSERT 语法 (INSERT ... ON CONFLICT DO UPDATE)
+            // 这是原子操作，比先 SELECT 再 UPDATE/INSERT 更高效
+            String upsertSQL = """
+                INSERT INTO player_stats (uuid, name, correct_answers, total_attempts)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(uuid) DO UPDATE SET
+                    name = excluded.name,
+                    correct_answers = correct_answers + excluded.correct_answers,
+                    total_attempts = total_attempts + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                """;
+
+            try (PreparedStatement stmt = connection.prepareStatement(upsertSQL)) {
+                stmt.setString(1, uuid);
+                stmt.setString(2, name != null ? name : uuid);
+                stmt.setInt(3, isCorrect ? 1 : 0);
+                stmt.setInt(4, 1);
+                stmt.executeUpdate();
+            } catch (SQLException e) {
+                logger.severe("更新玩家统计失败: " + e.getMessage());
+                throw e;
             }
         }
     }

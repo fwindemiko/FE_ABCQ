@@ -12,17 +12,20 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class FE_ABCQ extends JavaPlugin implements Listener {
 
     private FileConfiguration messagesConfig;
     private File messagesFile;
     private io.papermc.paper.threadedregions.scheduler.ScheduledTask questionTask;
+    private io.papermc.paper.threadedregions.scheduler.ScheduledTask answerTimeoutTask;
 
     private volatile String currentQuestion;
     private volatile Set<String> correctAnswers;
@@ -32,18 +35,51 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
     private MiniMessage miniMessage;
     private DatabaseManager databaseManager;
 
+    private List<String> cachedQuestions = null;
+
     @Override
     public void onEnable() {
         miniMessage = MiniMessage.miniMessage();
         initializeDatabase();
         saveDefaultConfig();
         loadMessages();
+        cacheQuestions();
         getServer().getPluginManager().registerEvents(this, this);
         startQuestionTask();
         Objects.requireNonNull(getCommand("feabcq")).setExecutor(this);
         Objects.requireNonNull(getCommand("feabcq")).setTabCompleter(this);
+        getLogger().info("知识问答插件已启用，加载了 " + cachedQuestions.size() + " 个问题");
+    }
+
+    private void cacheQuestions() {
         List<String> questions = getConfig().getStringList("options.questions");
-        getLogger().info("知识问答插件已启用，加载了 " + questions.size() + " 个问题");
+        cachedQuestions = new ArrayList<>();
+        for (String q : questions) {
+            if (q != null && !q.trim().isEmpty()) {
+                String[] parts = q.split("\\|");
+                if (parts.length >= 2) {
+                    boolean hasValidAnswer = false;
+                    for (int i = 1; i < parts.length; i++) {
+                        if (parts[i] != null && !parts[i].trim().isEmpty()) {
+                            hasValidAnswer = true;
+                            break;
+                        }
+                    }
+                    if (hasValidAnswer) {
+                        cachedQuestions.add(q);
+                    }
+                }
+            }
+        }
+        if (cachedQuestions.isEmpty()) {
+            cachedQuestions = Arrays.asList(
+                    "地球的卫星是什么？|月球|月亮",
+                    "水的化学式是什么？|H2O|h2o",
+                    "中国的首都是哪里？|北京",
+                    "太阳系中最大的行星是？|木星",
+                    "《红楼梦》的作者是谁？|曹雪芹"
+            );
+        }
     }
 
     @Override
@@ -89,8 +125,8 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
     public void reloadConfigs() {
         reloadConfig();
         loadMessages();
-        List<String> questions = getConfig().getStringList("options.questions");
-        getLogger().info("配置文件重载完成，加载了 " + questions.size() + " 个问题");
+        cacheQuestions();
+        getLogger().info("配置文件重载完成，加载了 " + cachedQuestions.size() + " 个问题");
         if (questionTask != null) {
             questionTask.cancel();
         }
@@ -109,19 +145,12 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
     }
 
     private void askRandomQuestion() {
-        List<String> questions = getConfig().getStringList("options.questions");
-        if (questions.isEmpty()) {
-            questions = Arrays.asList(
-                    "地球的卫星是什么？|月球|月亮",
-                    "水的化学式是什么？|H2O|h2o",
-                    "中国的首都是哪里？|北京",
-                    "太阳系中最大的行星是？|木星",
-                    "《红楼梦》的作者是谁？|曹雪芹"
-            );
+        if (cachedQuestions.isEmpty()) {
+            getLogger().warning("没有可用的问题列表");
+            return;
         }
-        if (questions.isEmpty()) return;
 
-        String questionLine = questions.get(new Random().nextInt(questions.size()));
+        String questionLine = cachedQuestions.get(ThreadLocalRandom.current().nextInt(cachedQuestions.size()));
         String[] parts = questionLine.split("\\|");
         if (parts.length < 2) return;
 
@@ -129,7 +158,7 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
 
         // 如果当前有活跃问题，需要先结束它
         if (isQuestionActive) {
-            // 只有在 timed 模式下且无人答对时，才发送“无人回答”消息
+            // 只有在 timed 模式下且无人答对时，才发送"无人回答"消息
             if ("timed".equals(answerMode) && lastCorrectPlayer == null) {
                 Component noAnswerMsg = deserializeMessage("no_answer");
                 for (Player player : getServer().getOnlinePlayers()) {
@@ -137,6 +166,11 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
                         player.sendMessage(noAnswerMsg);
                     }
                 }
+            }
+            // 取消之前的超时任务
+            if (answerTimeoutTask != null) {
+                answerTimeoutTask.cancel();
+                answerTimeoutTask = null;
             }
             // 重置当前问题状态
             synchronized(this) {
@@ -168,9 +202,10 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
         }
 
         // 广播问题
-        if (currentQuestion != null) {
+        String questionToBroadcast = currentQuestion;
+        if (questionToBroadcast != null) {
             Component msg = deserializeMessage("question_message",
-                    Placeholder.parsed("question", currentQuestion));
+                    Placeholder.parsed("question", questionToBroadcast));
             for (Player player : getServer().getOnlinePlayers()) {
                 if (player != null) {
                     player.sendMessage(msg);
@@ -181,7 +216,7 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
         // 仅在 timed 模式下设置时间限制
         if ("timed".equals(answerMode)) {
             int timeLimit = getConfig().getInt("options.answer_time_limit", 30);
-            getServer().getGlobalRegionScheduler().runDelayed(this, task -> {
+            answerTimeoutTask = getServer().getGlobalRegionScheduler().runDelayed(this, task -> {
                 synchronized (FE_ABCQ.this) {
                     if (isQuestionActive) {
                         if (lastCorrectPlayer == null) {
@@ -198,12 +233,13 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
                         lastCorrectPlayer = null;
                     }
                 }
+                answerTimeoutTask = null;
             }, 20L * timeLimit);
         }
     }
 
     @EventHandler
-    public void onPlayerChat(org.bukkit.event.player.PlayerChatEvent event) {
+    public void onPlayerChat(PlayerChatEvent event) {
         if (!isQuestionActive || currentQuestion == null || correctAnswers == null) {
             return;
         }
@@ -225,7 +261,8 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
             for (String answer : answers) {
                 if (answer == null) continue;
                 String checkAnswer = ignoreCase ? answer.toLowerCase() : answer;
-                if (checkMessage.contains(checkAnswer) || checkAnswer.contains(checkMessage)) {
+                // 使用精确匹配：玩家输入的消息必须完整匹配某个答案
+                if (checkMessage.equals(checkAnswer)) {
                     isCorrect = true;
                     matchedAnswer = answer;
                     break;
@@ -236,22 +273,28 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
         if (isCorrect) {
             event.setCancelled(true);
 
+            boolean wasFirstToAnswer;
             synchronized (this) {
-                if (lastCorrectPlayer != null) {
-                    player.sendActionBar(deserializeMessage("wrong_answer_actionbar"));
-                    return;
+                wasFirstToAnswer = (lastCorrectPlayer == null);
+                if (wasFirstToAnswer) {
+                    lastCorrectPlayer = player;
+                    isQuestionActive = false;
+                    currentQuestion = null;
+                    correctAnswers = null;
                 }
-                lastCorrectPlayer = player;
-                isQuestionActive = false;
-                currentQuestion = null;
-                correctAnswers = null;
             }
 
-            updatePlayerStats(player.getUniqueId().toString(), player.getName(), true);
-            giveRewards(player);
-            showSuccessEffects(player);
-            sendActionBarStats(player);
-            broadcastSuccessMessage(player, matchedAnswer);
+            if (wasFirstToAnswer) {
+                // 只有第一个答对的玩家才获得奖励和统计
+                updatePlayerStats(player.getUniqueId().toString(), player.getName(), true);
+                giveRewards(player);
+                showSuccessEffects(player);
+                sendActionBarStats(player);
+                broadcastSuccessMessage(player, matchedAnswer);
+            } else {
+                // 慢了一步的玩家收到提示，但不算作答错
+                player.sendActionBar(deserializeMessage("wrong_answer_actionbar"));
+            }
         } else {
             updatePlayerStats(player.getUniqueId().toString(), player.getName(), false);
         }
@@ -316,17 +359,15 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
         if (world == null) return;
 
         try {
-            // 粒子效果（始终播放）
+            // 粒子效果（始终播放）- 优化为单次调用
             if (getConfig().getBoolean("effects.particles", true)) {
-                Random random = new Random();
-                for (int i = 0; i < 25; i++) {
-                    double offsetX = (random.nextGaussian() - 0.5) * 2;
-                    double offsetY = Math.abs(random.nextGaussian()) * 2;
-                    double offsetZ = (random.nextGaussian() - 0.5) * 2;
-                    world.spawnParticle(Particle.HAPPY_VILLAGER,
-                            loc.getX() + offsetX, loc.getY() + offsetY, loc.getZ() + offsetZ,
-                            1, 0, 0, 0, 0);
-                }
+                Random random = ThreadLocalRandom.current();
+                double offsetX = (random.nextGaussian() - 0.5) * 2;
+                double offsetY = Math.abs(random.nextGaussian()) * 2;
+                double offsetZ = (random.nextGaussian() - 0.5) * 2;
+                world.spawnParticle(Particle.HAPPY_VILLAGER,
+                        loc.getX() + offsetX, loc.getY() + offsetY, loc.getZ() + offsetZ,
+                        25, 0, 0, 0, 0);
             }
 
             // 声音效果（始终播放）
@@ -379,7 +420,9 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
         } catch (Exception e) {
             // 捕获所有异常，防止中断答对后续流程（消息发送等）
             getLogger().warning("显示成功效果时发生异常: " + e.getMessage());
-            e.printStackTrace(); // 便于调试，可移除
+            for (StackTraceElement element : e.getStackTrace()) {
+                getLogger().warning(element.toString());
+            }
         }
     }
 
