@@ -1,11 +1,12 @@
 name: FE_ABCQ
-version: '1.0'
+version: '${project.version}'
 main: top.miragedge.abcq.FE_ABCQ
-api-version: '1.21'
+api-version: '1.18'
 prefix: FE_ABCQ
 authors: [ F.windEmiko ]
-description: 玩家知识问答插件
+description: 玩家知识问答插件 - 支持 Paper 1.18+ 至最新版本及 Folia 服务端
 website: https://github.com/fwindemiko/FE_ABCQ
+folia: true
 
 commands:
   feabcq:

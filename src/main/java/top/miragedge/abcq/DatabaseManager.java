@@ -141,21 +141,16 @@ public class DatabaseManager {
             return false;
         }
     }
-    
+
     // 玩家统计数据类
-    public static class PlayerStats {
-        public final String uuid;
-        public final String name;
-        public final int correctAnswers;
-        public final int totalAttempts;
-        
-        public PlayerStats(String uuid, String name, int correctAnswers, int totalAttempts) {
-            this.uuid = uuid != null ? uuid : "";
-            this.name = name;
-            this.correctAnswers = Math.max(0, correctAnswers);
-            this.totalAttempts = Math.max(0, totalAttempts);
+    public record PlayerStats(String uuid, String name, int correctAnswers, int totalAttempts) {
+        // Compact 构造函数用于验证和规范化
+        public PlayerStats {
+            uuid = (uuid != null ? uuid : "");
+            correctAnswers = Math.max(0, correctAnswers);
+            totalAttempts = Math.max(0, totalAttempts);
         }
-        
+
         public double getAccuracyRate() {
             if (totalAttempts == 0) return 0.0;
             return (double) correctAnswers / totalAttempts * 100;

@@ -6,19 +6,62 @@
 
     <groupId>top.miragedge</groupId>
     <artifactId>FE_ABCQ</artifactId>
-    <version>1.0</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
 
     <name>FE_ABCQ</name>
+    <description>玩家知识问答插件 - 支持 Paper 1.18+ 至最新版本及 Folia 服务端</description>
 
     <properties>
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- 默认使用最新 Paper API -->
+        <paper.api.version>1.21.4-R0.1-SNAPSHOT</paper.api.version>
     </properties>
+
+    <profiles>
+        <!-- Paper 1.18.x -->
+        <profile>
+            <id>paper-1.18</id>
+            <properties>
+                <paper.api.version>1.18.2-R0.1-SNAPSHOT</paper.api.version>
+            </properties>
+        </profile>
+        <!-- Paper 1.19.x -->
+        <profile>
+            <id>paper-1.19</id>
+            <properties>
+                <paper.api.version>1.19.4-R0.1-SNAPSHOT</paper.api.version>
+            </properties>
+        </profile>
+        <!-- Paper 1.20.x -->
+        <profile>
+            <id>paper-1.20</id>
+            <properties>
+                <paper.api.version>1.20.4-R0.1-SNAPSHOT</paper.api.version>
+            </properties>
+        </profile>
+        <!-- Paper 1.21.x (默认) -->
+        <profile>
+            <id>paper-1.21</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <paper.api.version>1.21.4-R0.1-SNAPSHOT</paper.api.version>
+            </properties>
+        </profile>
+    </profiles>
 
     <build>
         <defaultGoal>clean package</defaultGoal>
-        <finalName>[F][知识问答]FE_ABCQ</finalName>
+        <finalName>[F][知识问答]FE_ABCQ-${project.version}</finalName>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -27,6 +70,8 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <!-- 使用 release 而非 source/target 以获得更好的版本检查 -->
+                    <release>${java.version}</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -39,16 +84,18 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <minimizeJar>false</minimizeJar>
+                            <!-- 排除 Paper API 的依赖，避免与目标服务器上的 Paper API 冲突 -->
+                            <excludes>
+                                <exclude>io.papermc.paper:paper-api:*:*</exclude>
+                            </excludes>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
         </plugins>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
     </build>
 
     <repositories>
@@ -62,7 +109,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.11-R0.1-SNAPSHOT</version>
+            <version>${paper.api.version}</version>
             <scope>provided</scope>
         </dependency>
         <!-- MiniMessage dependency for modern chat formatting -->
