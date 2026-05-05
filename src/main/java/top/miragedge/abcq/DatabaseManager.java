@@ -10,6 +10,9 @@ public class DatabaseManager {
     private final Object lock = new Object();
 
     public DatabaseManager(String dbPath, Logger logger) {
+        if (dbPath == null || dbPath.isEmpty()) {
+            throw new IllegalArgumentException("Database path cannot be null or empty");
+        }
         this.dbPath = dbPath;
         this.logger = logger;
     }

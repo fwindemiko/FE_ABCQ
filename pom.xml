@@ -87,10 +87,6 @@
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <minimizeJar>false</minimizeJar>
-                            <!-- 排除 Paper API 的依赖，避免与目标服务器上的 Paper API 冲突 -->
-                            <excludes>
-                                <exclude>io.papermc.paper:paper-api:*:*</exclude>
-                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

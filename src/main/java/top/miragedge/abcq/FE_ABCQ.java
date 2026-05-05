@@ -29,7 +29,6 @@ import java.io.File;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -38,7 +37,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * FE_ABCQ - 知识问答插件
  * 支持 Paper 1.18+ 至最新版本及 Folia 服务端
  */
+@SuppressWarnings("deprecation")
 public final class FE_ABCQ extends JavaPlugin implements Listener {
+
+    private static final int FIREWORK_REMOVE_DELAY_TICKS = 60;
 
     private FileConfiguration messagesConfig;
 
@@ -47,7 +49,7 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
 
     private volatile String currentQuestion;
     // 使用 ConcurrentHashMap 替代 HashSet 以提高并发性能
-    private volatile Map<String, String> correctAnswers; // answer -> originalAnswer
+    private volatile ConcurrentHashMap<String, String> correctAnswers; // answer -> originalAnswer
     private volatile boolean isQuestionActive = false;
     private volatile Player lastCorrectPlayer = null;
 
@@ -308,7 +310,7 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
     @SuppressWarnings("deprecation")
     private void handleChatEvent(AsyncPlayerChatEvent event) {
         // 获取当前正确答案的快照用于检查和匹配
-        Map<String, String> currentAnswers;
+        ConcurrentHashMap<String, String> currentAnswers;
         boolean questionActive;
 
         synchronized (this) {
@@ -486,7 +488,7 @@ public final class FE_ABCQ extends JavaPlugin implements Listener {
                     if (firework.isValid() && !firework.isDead()) {
                         firework.remove();
                     }
-                }, 60L);
+                }, FIREWORK_REMOVE_DELAY_TICKS);
             }
         } catch (Exception e) {
             getLogger().warning("显示成功效果时发生异常: " + e.getMessage());
